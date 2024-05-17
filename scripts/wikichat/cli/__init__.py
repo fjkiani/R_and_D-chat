@@ -15,7 +15,7 @@ from typing import Callable, Any, Union
 
 from wikichat.commands import model
 from wikichat.utils.metrics import METRICS
-
+from wikichat.database_setup import ASTRA_DB, EMBEDDINGS_COLLECTION, METADATA_COLLECTION, SUGGESTIONS_COLLECTION
 
 # ======================================================================================================================
 # Model
@@ -190,3 +190,11 @@ def config_arg_parse():
         command_parser.set_defaults(command_def=command)
         _add_command_args(command.args_cls, command_parser)
     return parser
+
+# Ensure the script runs with the proper argument parser
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    parser = config_arg_parse()
+    args = parser.parse_args()
+    command_def = args.command_def
+    asyncio.run(command_def.run(args))

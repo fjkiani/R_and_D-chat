@@ -1,88 +1,80 @@
-# Ensure all necessary imports are at the top
 import logging
 import os
 import sys
-from pathlib import Path
+import asyncio
 
-# Ensure the scripts directory is in the Python path
-script_path = Path(__file__).resolve().parent
-project_root = script_path.parent.parent
-sys.path.append(str(project_root / "scripts"))
+# Add the parent directory of 'wikichat' to the system path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from astrapy.db import AstraDB, AstraDBCollection
 from dotenv import load_dotenv
-
-import wikichat
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from wikichat.processing.embeddings import get_embeddings  # Adjust the import based on your project structure
+from wikichat.database_setup import ASTRA_DB, EMBEDDINGS_COLLECTION, METADATA_COLLECTION, SUGGESTIONS_COLLECTION
 
 load_dotenv()
 
-# The client to connect to the Astra Data API
-ASTRA_DB = AstraDB(token=os.getenv("ASTRA_DB_APPLICATION_TOKEN"), api_endpoint=os.getenv("ASTRA_DB_API_ENDPOINT"))
+# Directly set the environment variable in the script for testing purposes
+os.environ["ASTRA_DB_APPLICATION_TOKEN"] = "#"  # Replace with your actual token
+os.environ["ASTRA_DB_API_ENDPOINT"] = "#"  # Replace with your actual endpoint
 
-# We have three collections
+# Collection names
 _ARTICLE_EMBEDDINGS_NAME = "article_embeddings"
 _ARTICLE_METADATA_NAME = "article_metadata"
 _ARTICLE_SUGGESTIONS_NAME = "article_suggestions"
-_ALL_COLLECTION_NAMES = [_ARTICLE_EMBEDDINGS_NAME, _ARTICLE_METADATA_NAME, _ARTICLE_SUGGESTIONS_NAME]
 
-def drop_collection_if_exists(collection_name):
+def delete_collection_if_exists(collection_name):
     try:
-        ASTRA_DB.delete_collection(collection_name)
-        logging.info(f"Collection '{collection_name}' deleted successfully.")
+        ASTRA_DB.delete_collection(collection_name=collection_name)
+        logging.info(f"Deleted existing collection {collection_name}")
     except Exception as e:
-        logging.info(f"Collection '{collection_name}' does not exist or cannot be deleted: {e}")
+        if "does not exist" in str(e):
+            logging.info(f"Collection {collection_name} does not exist, nothing to delete.")
+        else:
+            logging.error(f"Error deleting collection {collection_name}. Error: {e}")
 
-def setup_collections():
-    # Drop the collections if they exist
-    drop_collection_if_exists(_ARTICLE_EMBEDDINGS_NAME)
-    drop_collection_if_exists(_ARTICLE_METADATA_NAME)
-    drop_collection_if_exists(_ARTICLE_SUGGESTIONS_NAME)
+def create_collection(collection_name, dimension=None):
+    try:
+        if dimension:
+            ASTRA_DB.create_collection(collection_name=collection_name, dimension=dimension)
+        else:
+            ASTRA_DB.create_collection(collection_name=collection_name)
+        logging.info(f"Created collection {collection_name} with dimension {dimension}")
+    except Exception as e:
+        logging.error(f"Error while creating collection {collection_name}. Error: {e}")
 
-    # Create the collections with the correct options
-    ASTRA_DB.create_collection(collection_name=_ARTICLE_EMBEDDINGS_NAME, dimension=1536)
-    ASTRA_DB.create_collection(collection_name=_ARTICLE_METADATA_NAME)
-    ASTRA_DB.create_collection(collection_name=_ARTICLE_SUGGESTIONS_NAME)
+# Function to process articles and get embeddings
+async def process_and_embed_articles(articles: list[str]) -> None:
+    try:
+        embeddings, embedding_dimension = await get_embeddings(articles)
+        logging.info(f"Received {len(embeddings)} embeddings with dimension {embedding_dimension}")
 
-    # Create the collection objects this code will use
-    embeddings_collection = AstraDBCollection(collection_name=_ARTICLE_EMBEDDINGS_NAME, astra_db=ASTRA_DB)
-    metadata_collection = AstraDBCollection(collection_name=_ARTICLE_METADATA_NAME, astra_db=ASTRA_DB)
-    suggestions_collection = AstraDBCollection(collection_name=_ARTICLE_SUGGESTIONS_NAME, astra_db=ASTRA_DB)
+        # Truncate embeddings to 1000 dimensions if necessary
+        if embedding_dimension > 1000:
+            logging.warning(f"Truncating embeddings from {embedding_dimension} to 1000 dimensions")
+            embeddings = [embedding[:1000] for embedding in embeddings]
+            embedding_dimension = 1000
 
-    logging.info("Collections setup completed.")
-    return [embeddings_collection, metadata_collection, suggestions_collection]
+        # Recreate the collection with the retrieved embedding dimension
+        delete_collection_if_exists(_ARTICLE_EMBEDDINGS_NAME)
+        create_collection(_ARTICLE_EMBEDDINGS_NAME, dimension=embedding_dimension)
 
-# Setup collections
-_ALL_COLLECTIONS = setup_collections()
-_ROTATED_COLLECTIONS = [_ALL_COLLECTIONS[0], _ALL_COLLECTIONS[1]]
-
-# Define global collections for import
-EMBEDDINGS_COLLECTION = _ALL_COLLECTIONS[0]
-METADATA_COLLECTION = _ALL_COLLECTIONS[1]
-SUGGESTIONS_COLLECTION = _ALL_COLLECTIONS[2]
+        # Insert embeddings into the database
+        for i, embedding in enumerate(embeddings):
+            EMBEDDINGS_COLLECTION.insert_one({
+                "article": articles[i],
+                "embedding": embedding
+            })
+    except Exception as e:
+        logging.error(f"Failed to process and embed articles: {e}")
 
 async def truncate_all_collections():
-    for collection in _ALL_COLLECTIONS:
-        await try_truncate_collection(collection)
-
-async def truncate_rotated_collections():
-    for collection in _ROTATED_COLLECTIONS:
-        await try_truncate_collection(collection)
-
-async def try_truncate_collection(collection: AstraDBCollection):
-    # This can timeout sometimes, so lets retry :)
-    for i in range(5):
-        try:
-            logging.info(f"Attempt {i} Truncating collection {collection.collection_name}")
-            await wikichat.utils.wrap_blocking_io(
-                lambda: collection.delete_many({})
-            )
-            logging.info(f"Collection '{collection.collection_name}' truncated successfully.")
-            break
-        except Exception:
-            logging.exception(f"Retrying, error truncating collection {collection.collection_name}", exc_info=True)
+    delete_collection_if_exists(_ARTICLE_EMBEDDINGS_NAME)
+    delete_collection_if_exists(_ARTICLE_METADATA_NAME)
+    delete_collection_if_exists(_ARTICLE_SUGGESTIONS_NAME)
+    create_collection(_ARTICLE_EMBEDDINGS_NAME, dimension=1024)
+    create_collection(_ARTICLE_METADATA_NAME)
+    create_collection(_ARTICLE_SUGGESTIONS_NAME)
 
 if __name__ == "__main__":
-    setup_collections()
+    logging.basicConfig(level=logging.INFO)
+    articles = ["This is an article about AI.", "Another article on machine learning."]
+    asyncio.run(process_and_embed_articles(articles))
