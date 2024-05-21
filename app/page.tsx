@@ -28,9 +28,14 @@ export default function Home() {
       const parsed = JSON.parse(completion);
       const questions = parsed?.questions;
       const questionsArr: PromptSuggestion[] = [];
+  
       questions.forEach(q => {
         questionsArr.push(q);
       });
+  
+      // Shuffle the questions array
+      questionsArr.sort(() => Math.random() - 0.5);
+  
       setSuggestions(questionsArr);
     }
   });

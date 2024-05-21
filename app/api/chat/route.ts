@@ -58,6 +58,12 @@ QUESTION: {question}
 const prompt = PromptTemplate.fromTemplate(questionTemplate);
 
 const combineDocumentsFn = (docs: Document[]) => {
+  // Shuffle the documents array to introduce randomness
+  for (let i = docs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [docs[i], docs[j]] = [docs[j], docs[i]];
+  }
+
   const serializedDocs = docs.map((doc) => `Title: ${doc.metadata.title}
 URL: ${doc.metadata.url}
 Content: ${doc.pageContent}`);
