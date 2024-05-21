@@ -2,19 +2,24 @@ import logging
 import os
 import sys
 import asyncio
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the parent directory of 'wikichat' to the system path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dotenv import load_dotenv
 from wikichat.processing.embeddings import get_embeddings  # Adjust the import based on your project structure
 from wikichat.database_setup import ASTRA_DB, EMBEDDINGS_COLLECTION, METADATA_COLLECTION, SUGGESTIONS_COLLECTION
 
-load_dotenv()
+# Access environment variables securely
+ASTRA_DB_APPLICATION_TOKEN = os.getenv("ASTRA_DB_APPLICATION_TOKEN")
+ASTRA_DB_API_ENDPOINT = os.getenv("ASTRA_DB_API_ENDPOINT")
 
-# Directly set the environment variable in the script for testing purposes
-os.environ["ASTRA_DB_APPLICATION_TOKEN"] = "#"  # Replace with your actual token
-os.environ["ASTRA_DB_API_ENDPOINT"] = "#"  # Replace with your actual endpoint
+if not ASTRA_DB_APPLICATION_TOKEN or not ASTRA_DB_API_ENDPOINT:
+    logging.error("Missing required environment variables. Ensure ASTRA_DB_APPLICATION_TOKEN and ASTRA_DB_API_ENDPOINT are set.")
+    sys.exit(1)
 
 # Collection names
 _ARTICLE_EMBEDDINGS_NAME = "article_embeddings"

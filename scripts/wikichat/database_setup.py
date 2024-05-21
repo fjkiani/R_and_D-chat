@@ -1,14 +1,10 @@
-# database_setup.py
 import logging
 import os
 from astrapy.db import AstraDB, AstraDBCollection
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
-
-# Directly set the environment variable in the script for testing purposes
-os.environ["ASTRA_DB_APPLICATION_TOKEN"] = "AstraCS:mBJwuzaKZCznEZqFOOOikXIc:13b1967f2f3b861a0a16fabf699a140b40ba8c89970b048f621af2842f853118"  # Replace with your actual token
-os.environ["ASTRA_DB_API_ENDPOINT"] = "https://9db69b34-256f-441b-afbb-af21fe85dea0-us-east-2.apps.astra.datastax.com"  # Replace with your actual endpoint
 
 # Retrieve the Astra DB token and endpoint from the environment variables
 ASTRA_DB_APPLICATION_TOKEN = os.getenv("ASTRA_DB_APPLICATION_TOKEN")

@@ -118,7 +118,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex flex-col gap-6 md:gap-16 mt-auto mb-6">
-              <div className="text-xl md:text-3xl text-center">What would you like to learn about today?</div>
+              <div className="text-xl md:text-3xl text-center">Here are some ideas with content creating today</div>
               <PromptSuggestionRow prompts={suggestions} onPromptClick={handlePrompt} setCategory={setCategory} />
             </div>
           )}

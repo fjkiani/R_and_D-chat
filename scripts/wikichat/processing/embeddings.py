@@ -12,7 +12,7 @@ from backoff import on_exception, expo
 load_dotenv()
 
 # Directly set the environment variable in the script for testing purposes
-os.environ["COHERE_API_KEY"] = "#"  # Replace with your actual API key
+os.environ["COHERE_API_KEY"] = "tJ6U31DiRGEa9eQ7BKqwfBhP8pOmx6BU18zFWiUN"  # Replace with your actual API key
 
 # Retrieve the API key from the environment variables
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
